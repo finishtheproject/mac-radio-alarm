@@ -1,0 +1,4 @@
+# Temporary files from build.sh / make_icon.swift
+AppIcon.iconset/
+*.app/
+.DS_Store
