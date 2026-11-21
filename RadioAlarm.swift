@@ -440,8 +440,46 @@ enum AutoOpen {
         isInstalledCopy && SMAppService.mainApp.status == .requiresApproval
     }
 
-    /// The earlier version scheduled a background job to open the app 5 minutes before each alarm.
-    /// That was replaced by staying in the menu bar; remove the old job if it's still there.
+    /// Minutes before each alarm that the opener job reopens the app.
+    static let openerLeadMinutes = 5
+
+    /// Safety net if the app was quit the night before (by accident, Force Quit or a crash): a launchd job
+    /// (it runs even while the app is quit) reopens the app a few minutes before each alarm that's on.
+    /// Does nothing if the app is already running. Rewritten whenever the alarms change.
+    static func updateOpener(_ alarms: [Alarm]) {
+        guard isInstalledCopy else { return }
+        var times: [[String: Int]] = []
+        for a in alarms where a.enabled {
+            var m = a.hour * 60 + a.minute - openerLeadMinutes
+            var dayShift = 0
+            if m < 0 { m += 24 * 60; dayShift = -1 }          // e.g. a 00:02 alarm opens at 23:57 the day before
+            let base = ["Hour": m / 60, "Minute": m % 60]
+            if a.isRepeating {
+                for d in a.days.sorted() {                     // app: 1 = Sunday … 7; launchd: 0 = Sunday … 6
+                    var e = base; e["Weekday"] = (d - 1 + dayShift + 7) % 7
+                    times.append(e)
+                }
+            } else {
+                times.append(base)   // one-time: daily until it rings (it's then switched off and dropped from here)
+            }
+        }
+        guard !times.isEmpty else { removeOldOpener(); return }
+        let plist: [String: Any] = [
+            "Label": label,
+            "ProgramArguments": ["/bin/sh", "-c",
+                                 "/usr/bin/pgrep -xq RadioAlarm || /usr/bin/open -g \"\(Bundle.main.bundlePath)\""],
+            "StartCalendarInterval": times,
+        ]
+        guard let data = try? PropertyListSerialization.data(fromPropertyList: plist, format: .xml, options: 0) else { return }
+        if (try? Data(contentsOf: plistURL)) == data { return }   // unchanged: already scheduled
+        launchctl(["bootout", "gui/\(getuid())/\(label)"])
+        try? FileManager.default.createDirectory(at: plistURL.deletingLastPathComponent(), withIntermediateDirectories: true)
+        guard (try? data.write(to: plistURL)) != nil else { return }
+        launchctl(["bootstrap", "gui/\(getuid())", plistURL.path])
+    }
+
+    /// Removes the opener job (used when no alarm is on).
+    /// (The earlier version's job used the same label, so this also cleans that up.)
     static func removeOldOpener() {
         guard FileManager.default.fileExists(atPath: plistURL.path) else { return }
         launchctl(["bootout", "gui/\(getuid())/\(label)"])
@@ -570,6 +608,7 @@ final class AlarmController: ObservableObject {
                 }
             }
             save(); recompute()
+            AutoOpen.updateOpener(alarms)   // keep the reopen-before-alarm job in step with the alarms
         }
     }
     @Published var ringing = false
@@ -642,7 +681,7 @@ final class AlarmController: ObservableObject {
         }
         save()
         VolumeRamp.restorePending()   // in case the app quit mid-alarm
-        AutoOpen.removeOldOpener()
+        AutoOpen.updateOpener(alarms)   // schedule the reopen-before-alarm job (replaces the old removal)
         Self.shared = self
         recompute()
 
