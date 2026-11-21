@@ -1676,6 +1676,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
     private var systemIsShuttingDown = false
+    private static let skipQuitDialogKey = "RadioAlarm.skipQuitDialog"   // set by "Don't show this again"
 
     /// Cmd-Q / Quit: always ask first — alarms don't ring while the app is quit.
     /// Not asked when the Mac restarts, shuts down or logs out (it would block that).
@@ -1690,18 +1691,28 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             let t = n.addingTimeInterval(-Double(AutoOpen.openerLeadMinutes * 60))
             return t > Date() ? t : nil
         }
+        // "Don't show this again" only hides the reassuring version (the app will reopen in time).
+        // The warning version (alarms won't ring) is always shown.
+        if reopenAt != nil, UserDefaults.standard.bool(forKey: Self.skipQuitDialogKey) { return .terminateNow }
         let alert = NSAlert()
         alert.messageText = "Quit Radio Alarm?"
         if let t = reopenAt {
             alert.informativeText = "It will reopen by itself at \(t.formatted(date: .omitted, time: .shortened)), "
                 + "\(AutoOpen.openerLeadMinutes) minutes before your next alarm, as long as the Mac is awake.\n\(summary)"
+            alert.showsSuppressionButton = true
+            alert.suppressionButton?.title = "Don't show this again"
         } else {
             alert.informativeText = "Your alarms won't ring until you open it again.\n\(summary)"
         }
         alert.addButton(withTitle: "Cancel")       // first button = default (Return) and Esc
         alert.addButton(withTitle: "Quit")
         NSApp.activate(ignoringOtherApps: true)
-        return alert.runModal() == .alertSecondButtonReturn ? .terminateNow : .terminateCancel
+        let quit = alert.runModal() == .alertSecondButtonReturn
+        // Remember the checkbox only when Quit was chosen (ticking it then pressing Cancel changes nothing).
+        if quit, alert.suppressionButton?.state == .on {
+            UserDefaults.standard.set(true, forKey: Self.skipQuitDialogKey)
+        }
+        return quit ? .terminateNow : .terminateCancel
     }
 
     func applicationWillTerminate(_ notification: Notification) {
