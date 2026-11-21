@@ -1682,9 +1682,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
         if systemIsShuttingDown { return .terminateNow }
         let summary = MainActor.assumeIsolated { AlarmController.shared?.nextAlarmSummary ?? "" }
+        // When the reopen-before-alarm job will bring the app back in time, say so instead of warning.
+        // Not while snoozing (the job doesn't cover a snoozed ring) or when the reopen time has already passed.
+        let reopenAt: Date? = MainActor.assumeIsolated {
+            guard let c = AlarmController.shared, c.snoozeUntil == nil, let n = c.nextFire,
+                  FileManager.default.fileExists(atPath: AutoOpen.plistURL.path) else { return nil }
+            let t = n.addingTimeInterval(-Double(AutoOpen.openerLeadMinutes * 60))
+            return t > Date() ? t : nil
+        }
         let alert = NSAlert()
         alert.messageText = "Quit Radio Alarm?"
-        alert.informativeText = "Your alarms won't ring until you open it again.\n\(summary)"
+        if let t = reopenAt {
+            alert.informativeText = "It will reopen by itself at \(t.formatted(date: .omitted, time: .shortened)), "
+                + "\(AutoOpen.openerLeadMinutes) minutes before your next alarm, as long as the Mac is awake.\n\(summary)"
+        } else {
+            alert.informativeText = "Your alarms won't ring until you open it again.\n\(summary)"
+        }
         alert.addButton(withTitle: "Cancel")       // first button = default (Return) and Esc
         alert.addButton(withTitle: "Quit")
         NSApp.activate(ignoringOtherApps: true)
