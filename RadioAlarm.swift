@@ -616,6 +616,7 @@ final class AlarmController: ObservableObject {
     private static let legacyLastFiredKey = "RadioAlarm.lastFired"
     private static let missedGrace: TimeInterval = 90     // later than this = Mac was asleep
     private static let autoStopAfter: TimeInterval = 15 * 60   // stop by itself if nobody presses Stop/Snooze
+    private static let autoStopNoticeFor: TimeInterval = 60 * 60   // hide the "stopped automatically" banner after this
     private var ringStarted: Date?
     private var autoStopping = false
 
@@ -744,6 +745,10 @@ final class AlarmController: ObservableObject {
         // Nobody pressed Stop/Snooze for 15 minutes (e.g. you went out): fade out and stop.
         if ringing, !autoStopping, let rs = ringStarted, now.timeIntervalSince(rs) >= Self.autoStopAfter {
             autoStop()
+        }
+        // The "stopped automatically" banner clears itself after an hour so it doesn't linger as old news.
+        if let n = autoStopped, now.timeIntervalSince(n.time) >= Self.autoStopNoticeFor {
+            autoStopped = nil
         }
 
         // A skip clears itself once the skipped ring has passed.
@@ -1078,7 +1083,8 @@ struct ContentView: View {
             banners
 
             Card {
-                ForEach(alarm.alarms) { a in
+                // Listed by time of day (stored order is unchanged).
+                ForEach(alarm.alarms.sorted { ($0.hour, $0.minute) < ($1.hour, $1.minute) }) { a in
                     AlarmRow(a: a, skipped: alarm.skippedRing(a), enabled: enabledBinding(a.id))
                         .contentShape(Rectangle())
                         .onTapGesture { editing = EditTarget(id: a.id) }
