@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Radio Alarm for Mac</title>
+<meta name="description" content="A free, open-source macOS alarm clock that wakes you up with live radio.">
+<style>
+  :root {
+    --bg: #000; --card: #141414; --text: #f2f2f2; --dim: #9a9a9a; --red: #ff1f1a;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text);
+    font: 17px/1.55 -apple-system, BlinkMacSystemFont, "Helvetica Neue", Arial, sans-serif;
+  }
+  main { max-width: 860px; margin: 0 auto; padding: 56px 16px 72px; }
+  h1 {
+    font-family: ui-monospace, "SF Mono", Menlo, monospace; color: var(--red);
+    font-size: clamp(36px, 8vw, 64px); letter-spacing: 0.04em; margin: 0 0 8px; text-align: center;
+    text-shadow: 0 0 18px rgba(255, 31, 26, 0.45);
+  }
+  .tagline { text-align: center; color: var(--dim); font-size: 20px; margin: 0 0 28px; }
+  .cta { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; margin-bottom: 40px; }
+  .btn {
+    display: inline-block; padding: 12px 22px; border-radius: 10px; text-decoration: none;
+    font-weight: 600; color: #fff; background: var(--red);
+  }
+  .btn.secondary { background: var(--card); border: 1px solid #2a2a2a; }
+  .note { text-align: center; color: var(--dim); font-size: 14px; margin: -28px 0 40px; }
+  img.shot { width: 100%; height: auto; border-radius: 12px; border: 1px solid #222; display: block; }
+  h2 { font-size: 22px; margin: 48px 0 12px; }
+  ul { padding-left: 20px; }
+  li { margin: 6px 0; }
+  li b { color: #fff; }
+  .card { background: var(--card); border-radius: 14px; padding: 18px 20px; }
+  .warn { border-left: 3px solid var(--red); }
+  code { background: #1e1e1e; padding: 2px 6px; border-radius: 6px; font-size: 14px; }
+  footer { color: var(--dim); font-size: 14px; text-align: center; margin-top: 56px; }
+  a { color: var(--red); }
+</style>
+</head>
+<body>
+<main>
+  <h1>RADIO ALARM</h1>
+  <p class="tagline">A free Mac alarm clock that wakes you up with live radio.</p>
+  <div class="cta">
+    <a class="btn" href="https://github.com/finishtheproject/mac-radio-alarm/releases/latest">Download for Mac</a>
+    <a class="btn secondary" href="https://github.com/finishtheproject/mac-radio-alarm">View on GitHub</a>
+  </div>
+  <p class="note">Free and open source (MIT). macOS 14 or later, Apple Silicon.</p>
+
+  <img class="shot" src="screenshot.jpg" alt="Radio Alarm showing a red digital clock and a list of alarms">
+
+  <h2>Features</h2>
+  <ul>
+    <li><b>Any radio station.</b> Presets plus search across thousands of stations from radio-browser.info.</li>
+    <li><b>Gentle wake-up.</b> The volume rises step by step and is put back afterwards.</li>
+    <li><b>Always out loud.</b> Rings on the Mac's speakers even with AirPods connected.</li>
+    <li><b>Backup sound</b> if you're offline or the station is down.</li>
+    <li><b>Repeating or one-time alarms</b>, per-alarm snooze, and Skip next.</li>
+    <li><b>Swipe</b> right to pin, left to delete or skip.</li>
+    <li><b>Sleep radio</b> that fades out after 15–60 minutes.</li>
+    <li><b>Hard to miss by accident:</b> lives in the menu bar, asks before quitting, and reopens itself 5 minutes before an alarm if it was quit.</li>
+  </ul>
+
+  <h2>Install</h2>
+  <div class="card">
+    <ol>
+      <li>Download <code>RadioAlarm.zip</code> and drag <b>RadioAlarm.app</b> into Applications.</li>
+      <li>Open it. macOS blocks it the first time because the app isn't notarized by Apple.</li>
+      <li>Go to <b>System Settings → Privacy &amp; Security</b> and click <b>Open Anyway</b>.</li>
+    </ol>
+  </div>
+
+  <h2>Keep your Mac awake</h2>
+  <div class="card warn">
+    The alarm only rings while the Mac is awake and you're logged in.
+    <b>Closing the lid puts the Mac to sleep and the alarm won't ring.</b>
+  </div>
+
+  <footer>Made by Kenny · <a href="https://github.com/finishtheproject/mac-radio-alarm/blob/main/LICENSE">MIT License</a></footer>
+</main>
+</body>
+</html>
