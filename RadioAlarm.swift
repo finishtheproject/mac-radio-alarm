@@ -45,8 +45,10 @@ struct Alarm: Codable, Identifiable, Equatable {
     var lastFired: Date?             // blocks a second ring within 12 h (time-zone travel)
     var skipDay: String?             // "yyyy-MM-dd" (local) of the one ring being skipped
     var snooze: Int?                 // minutes; per alarm (nil in older saved data)
+    var pinned: Bool?                // pinned alarms are listed first (nil in older saved data)
 
     var isRepeating: Bool { !days.isEmpty }
+    var isPinned: Bool { pinned ?? false }
     var snoozeMinutes: Int {
         get { snooze ?? 9 }
         set { snooze = newValue }
@@ -687,6 +689,12 @@ final class AlarmController: ObservableObject {
         alarms.removeAll { $0.id == id }
     }
 
+    /// Pin/unpin an alarm (swipe right). Pinned alarms are listed first.
+    func togglePin(_ id: UUID) {
+        guard let i = alarms.firstIndex(where: { $0.id == id }) else { return }
+        alarms[i].pinned = !alarms[i].isPinned
+    }
+
     /// The next ring of this alarm, ignoring any skip — the ring the Skip button acts on.
     func nextOccurrence(_ a: Alarm, honoringSkip: Bool = false) -> Date? {
         guard a.enabled else { return nil }
@@ -1047,6 +1055,7 @@ struct ContentView: View {
     @EnvironmentObject var alarm: AlarmController
     @ObservedObject var preview: RadioPlayer
     @State private var editing: EditTarget?
+    @State private var rowHeights: [UUID: CGFloat] = [:]
 
     struct EditTarget: Identifiable { let id: UUID }
 
@@ -1083,13 +1092,55 @@ struct ContentView: View {
             banners
 
             Card {
-                // Listed by time of day (stored order is unchanged).
-                ForEach(alarm.alarms.sorted { ($0.hour, $0.minute) < ($1.hour, $1.minute) }) { a in
-                    AlarmRow(a: a, skipped: alarm.skippedRing(a), enabled: enabledBinding(a.id))
-                        .contentShape(Rectangle())
-                        .onTapGesture { editing = EditTarget(id: a.id) }
-                    Divider().overlay(Color.white.opacity(0.06))
+                // The rows are a List (not a plain ForEach) because swipe actions only work in a List.
+                // Swipe right: Pin. Swipe left: Delete, and Skip next for repeating alarms.
+                List {
+                    // Pinned alarms first, then by time of day (stored order is unchanged).
+                    ForEach(sortedAlarms) { a in
+                        VStack(spacing: 12) {
+                            AlarmRow(a: a, skipped: alarm.skippedRing(a), enabled: enabledBinding(a.id))
+                                .contentShape(Rectangle())
+                                .onTapGesture { editing = EditTarget(id: a.id) }
+                            Divider().overlay(Color.white.opacity(0.06))
+                        }
+                        .padding(.bottom, 12)
+                        .background(GeometryReader { g in
+                            Color.clear.preference(key: RowHeights.self, value: [a.id: g.size.height])
+                        })
+                        .listRowInsets(EdgeInsets())
+                        .listRowSeparator(.hidden)
+                        .listRowBackground(Color.card)
+                        .swipeActions(edge: .leading, allowsFullSwipe: true) {
+                            Button { alarm.togglePin(a.id) } label: {
+                                Label(a.isPinned ? "Unpin" : "Pin", systemImage: a.isPinned ? "pin.slash" : "pin")
+                            }
+                            .tint(.orange)
+                        }
+                        .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+                            Button(role: .destructive) { alarm.deleteAlarm(a.id) } label: {
+                                Label("Delete", systemImage: "trash")
+                            }
+                            // Same skip as the editor's Skip button; only repeating alarms that are on have a next ring to skip.
+                            if alarm.skippedRing(a) != nil {
+                                Button { alarm.toggleSkip(a.id) } label: {
+                                    Label("Undo skip", systemImage: "arrow.uturn.backward")
+                                }
+                                .tint(.gray)
+                            } else if a.isRepeating, alarm.nextOccurrence(a) != nil {
+                                Button { alarm.toggleSkip(a.id) } label: {
+                                    Label("Skip next", systemImage: "forward.end")
+                                }
+                                .tint(.gray)
+                            }
+                        }
+                    }
                 }
+                .listStyle(.plain)
+                .scrollContentBackground(.hidden)
+                .scrollDisabled(true)
+                // A List inside the page's ScrollView has no height of its own: size it to its rows.
+                .frame(height: sortedAlarms.reduce(0) { $0 + (rowHeights[$1.id] ?? 64) })
+                .onPreferenceChange(RowHeights.self) { rowHeights = $0 }
                 Button {
                     editing = EditTarget(id: alarm.addAlarm())
                 } label: {
@@ -1103,6 +1154,21 @@ struct ContentView: View {
         }
         .frame(maxWidth: 480)
         .frame(maxWidth: .infinity)
+    }
+
+    private var sortedAlarms: [Alarm] {
+        alarm.alarms.sorted {
+            if $0.isPinned != $1.isPinned { return $0.isPinned }
+            return ($0.hour, $0.minute) < ($1.hour, $1.minute)
+        }
+    }
+
+    /// Measured height of each alarm row, used to size the List.
+    struct RowHeights: PreferenceKey {
+        static var defaultValue: [UUID: CGFloat] = [:]
+        static func reduce(value: inout [UUID: CGFloat], nextValue: () -> [UUID: CGFloat]) {
+            value.merge(nextValue()) { $1 }
+        }
     }
 
     private func enabledBinding(_ id: UUID) -> Binding<Bool> {
@@ -1165,10 +1231,16 @@ struct AlarmRow: View {
     var body: some View {
         HStack {
             VStack(alignment: .leading, spacing: 3) {
-                Text(alarmTimeString(a))
-                    .font(.system(size: 30, weight: .light, design: .rounded))
-                    .monospacedDigit()
-                    .foregroundStyle(a.enabled ? Color.white : Color.dim)
+                HStack(alignment: .firstTextBaseline, spacing: 8) {
+                    Text(alarmTimeString(a))
+                        .font(.system(size: 30, weight: .light, design: .rounded))
+                        .monospacedDigit()
+                        .foregroundStyle(a.enabled ? Color.white : Color.dim)
+                    // Shows the alarm is pinned to the top of the list.
+                    if a.isPinned {
+                        Image(systemName: "pin.fill").font(.caption).foregroundStyle(.orange)
+                    }
+                }
                 Text("\(daysSummary(a.days)) · \(a.station.name)")
                     .font(.caption).foregroundStyle(Color.dim).lineLimit(1)
                 if let s = skipped {
